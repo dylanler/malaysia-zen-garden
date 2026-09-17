@@ -437,15 +437,15 @@ ACES tone mapping; per-hour colour LUT; subtle vignette; bloom for lanterns, pel
 
 ### 11.1 Locomotion
 
-Two modes, switchable in settings; **Stroll** is the default because it is calm and works identically on every device.
+Two modes, switchable in settings; **Free roam** is the default (first-person, like a quiet walking game), with **Follow the path** for anyone who would rather be led.
 
-| | Stroll (default) | Free roam |
+| | Free roam (default) | Follow the path |
 |---|---|---|
-| Desktop | hold `W`/space/left mouse to walk the path; mouse to look (pointer lock optional) | `WASD` + mouse look |
-| Mobile | hold anywhere (or a bottom-centre button) to walk the path; drag to look; optional gyro look | left-thumb virtual joystick; right-side drag to look |
-| Both | tap glowing "go here" spots to walk to them; stations pause the path and open a small free area | walkable mask + heightmap |
+| Desktop | `WASD` + captured-mouse look (pointer lock; `Esc` releases and opens the menu); scroll to zoom; `Space` auto-walks to the next place along the path until you take a step | hold `W` to walk the path; `Space` to auto-walk |
+| Mobile | left-thumb joystick; drag anywhere to look; pinch to zoom; round button (right) walks forward when held, auto-walks when tapped | push the joystick forward, or tap the round button |
+| Both | the jetties hand you to the path for the sampan crossing and give free roam back ashore | Catmull-Rom spline with look-around |
 
-Camera height 1.6 m, FOV 65 desktop / 75 mobile portrait, gentle head-bob (toggle), eased turning, no sprint.
+Camera height 1.6 m, FOV 62 desktop / 74 mobile portrait, zoom to 2.6×, gentle head-bob (toggle), eased turning, no sprint. Walking speed 2.55 m/s free, 1.9 m/s on the path, 1.35 m/s on the water.
 
 ### 11.2 Interaction grammar (one finger, always)
 
@@ -644,7 +644,7 @@ No calendar estimates; each milestone lists what changes and what "done" means.
 Taken while building; the option chosen is listed first, with the alternatives that were considered.
 
 1. **Title:** *Taman Kenangan* (chosen: the garden is about memory more than stillness) / *Taman Tenang* / *Tenang*.
-2. **Default locomotion:** Stroll, with free roam in the menu (chosen). Free roam hands back to the path at the jetties, since the sampan only knows the one route.
+2. **Default locomotion:** first-person free roam (`WASD` + captured mouse on desktop, joystick + drag on touch), with "Follow the path" in the menu (chosen after playtesting; the first release led with the path). Free roam hands back to the path at the jetties, since the sampan only knows the one route, and resumes ashore. Cues (ring + hint) reveal themselves as you come near; on desktop a centre reticle does the pointing, and anything carried in the hands answers a press anywhere.
 3. **Human presence:** traces only, no characters (chosen): a steaming cup, slippers on a rock, a half-played congkak, a cat asleep on a table.
 4. **Distant maghrib azan on the night return:** omitted (chosen, at the owner's request). Religious elements appear only where they are also cultural and are handled as such: vilakku at a doorway, pelita at a gate, a wakaf on the roadside. Nothing sacred is interactive.
 5. **Art style:** flat low-poly with vertex colour and procedural canvas textures for batik, pua kumbu, tiles, zinc and planks (chosen). Fully procedural geometry replaced hand-modelled heroes for this version.
