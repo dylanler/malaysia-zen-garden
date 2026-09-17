@@ -1,0 +1,20 @@
+{
+  "name": "taman-kenangan",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Taman Kenangan: a slow, walkable, sound-led Malaysian zen garden in Three.js.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host"
+  },
+  "dependencies": {
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0",
+    "typescript": "~5.9.0",
+    "vite": "^7.0.0"
+  }
+}

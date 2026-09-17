@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#1b1a2e" />
+    <meta name="description" content="Taman Kenangan: a slow, walkable, sound-led Malaysian zen garden. One day, eight places, five cultures, one path home." />
+    <meta property="og:title" content="Taman Kenangan · a Malaysian zen garden" />
+    <meta property="og:description" content="Walk one slow day through Malaysian memory: a kampung at dawn, a waterfall at noon, rain on zinc, paddy at golden hour, a longhouse at sunset, a shophouse street at dusk, fireflies at night." />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <title>Taman Kenangan · a Malaysian zen garden</title>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+
+    <div id="ui">
+      <section id="title" class="overlay">
+        <div class="title-inner">
+          <p class="eyebrow">A Malaysian zen garden</p>
+          <h1>Taman Kenangan</h1>
+          <p class="sub">
+            Garden of memories. One slow day: a kampung at dawn, a waterfall at noon, rain on a zinc roof, padi at golden hour,
+            a longhouse at sunset, a shophouse street at dusk, fireflies on the lake at night.
+          </p>
+          <button id="enter" class="primary">Tap to enter</button>
+          <p class="fine">Headphones recommended · Walk slowly · Nothing here can be failed</p>
+          <p class="fine" id="resume-note"></p>
+          <p class="fine controls-note">
+            <span class="desktop-only">Hold <kbd>W</kbd> to stroll · Tap <kbd>Space</kbd> to auto-walk · Drag to look · Click things that glow</span>
+            <span class="touch-only">Hold the round button to stroll · Drag to look · Tap things that glow</span>
+          </p>
+        </div>
+      </section>
+
+      <section id="hud" class="hidden">
+        <div id="progress" aria-hidden="true"></div>
+
+        <div id="station-card" class="card hidden">
+          <div class="names">
+            <span class="native"></span>
+            <span class="ms"></span>
+            <span class="en"></span>
+          </div>
+          <p class="intro"></p>
+        </div>
+
+        <div id="memory" class="card hidden"></div>
+        <div id="hint" class="hidden"></div>
+        <div id="toast" class="hidden"></div>
+
+        <button id="walk" aria-label="Hold to stroll">
+          <span class="ring"></span>
+          <span class="dot"></span>
+        </button>
+        <div id="walk-label">hold to stroll · tap to auto-walk</div>
+
+        <div id="joystick" class="hidden"><div class="knob"></div></div>
+
+        <button id="menu-btn" aria-label="Menu">
+          <span></span><span></span><span></span>
+        </button>
+
+        <button id="close-focus" class="hidden" aria-label="Done">✕</button>
+        <div id="vignette"></div>
+      </section>
+
+      <section id="menu" class="overlay panel hidden">
+        <div class="panel-inner">
+          <h2>Taman Kenangan</h2>
+          <div class="row">
+            <label for="opt-sound">Sound</label>
+            <input id="opt-sound" type="range" min="0" max="100" value="80" />
+          </div>
+          <div class="row">
+            <label for="opt-loco">Walking</label>
+            <select id="opt-loco">
+              <option value="stroll">Stroll along the path</option>
+              <option value="free">Free roam</option>
+            </select>
+          </div>
+          <div class="row">
+            <label for="opt-quality">Quality</label>
+            <select id="opt-quality">
+              <option value="auto">Auto</option>
+              <option value="low">Low (battery saver)</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div class="row">
+            <label for="opt-motion">Reduced motion</label>
+            <input id="opt-motion" type="checkbox" />
+          </div>
+          <div class="row">
+            <label for="opt-hints">Show hints</label>
+            <input id="opt-hints" type="checkbox" checked />
+          </div>
+          <div class="actions">
+            <button id="menu-about">About this garden</button>
+            <button id="menu-reset" class="subtle">Start the day again</button>
+            <button id="menu-close" class="primary">Back to the garden</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="about" class="overlay panel hidden">
+        <div class="panel-inner about">
+          <h2>About this garden</h2>
+          <p>
+            <em>Taman Kenangan</em> means garden of memories. It is a zen garden built from Malaysian childhoods of the late
+            80s to the mid 2000s: the peel of a nasi lemak bungkus, a waterfall picnic, rain on a zinc roof, gongs over
+            padi, a loom on a longhouse ruai, a kolam at a doorway, a cellophane lantern held too high, and the fireflies
+            at Kampung Kuantan.
+          </p>
+          <p>
+            Five cultures walk the same path with the same weight: Malay, Chinese, Indian, Kadazan-Dusun and Iban.
+            Each place has one thing to touch, one instrument, and a few lines of memory. Every instrument in the garden
+            shares one scale, so anything you play here is in harmony with anything else.
+          </p>
+          <p>
+            What you will not find: characters, brands, scores, timers, or anything that can be failed. People are
+            present only as traces: a cup still steaming, slippers on a rock, a half-played board. Festival lights are
+            cultural lights; nothing sacred is made into a toy. The <em>sape</em> heard faintly near the river belongs
+            to the Orang Ulu, not the Iban, and is credited as such.
+          </p>
+          <p>
+            Everything here is procedural: the landscape, the objects, and every sound is synthesised in your browser.
+            Real field recordings, hand-modelled objects and reviews by each community are the next steps.
+          </p>
+          <p class="fine">
+            Names and words in Kadazan-Dusun, Iban, Tamil and Chinese should be verified by native speakers before this
+            garden is considered finished. If you see a mistake, tell us; that is how gardens grow.
+          </p>
+          <div class="actions">
+            <button id="about-close" class="primary">Back</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
