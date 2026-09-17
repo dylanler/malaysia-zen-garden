@@ -48,6 +48,8 @@ void main() {
 }
 `;
 
+const WHITE = new THREE.Color('#ffffff');
+
 export class Sky {
   group = new THREE.Group();
   material: THREE.ShaderMaterial;
@@ -118,7 +120,9 @@ export class Sky {
     this.material.uniforms.uTime.value = time;
     this.dome.position.copy(cameraPos);
     this.mountainMat.color.copy(horizon).lerp(top, 0.55).multiplyScalar(0.72);
-    this.cloudMat.color.copy(horizon).lerp(new THREE.Color('#ffffff'), 0.5);
+    // clouds are lit by the sky around them: white by day, a faint smudge over the massif at night
+    const lum = horizon.r * 0.2126 + horizon.g * 0.7152 + horizon.b * 0.0722;
+    this.cloudMat.color.copy(horizon).lerp(WHITE, 0.5 * Math.min(1, lum / 0.5));
     for (let i = 0; i < this.clouds.length; i++) {
       const c = this.clouds[i];
       c.position.x += Math.sin(time * 0.05 + i) * 0.02;

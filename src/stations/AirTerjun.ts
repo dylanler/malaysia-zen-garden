@@ -8,15 +8,20 @@ import type { Interactable } from '../core/Interaction';
 
 const fallVert = /* glsl */ `
 varying vec2 vUv;
+#include <fog_pars_vertex>
 void main() {
   vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  gl_Position = projectionMatrix * mvPosition;
+  #include <fog_vertex>
 }
 `;
 const fallFrag = /* glsl */ `
 uniform float uTime;
 uniform sampler2D uNoise;
+uniform vec3 uLight;
 varying vec2 vUv;
+#include <fog_pars_fragment>
 void main() {
   float n = texture2D(uNoise, vec2(vUv.x * 1.5, vUv.y * 2.5 - uTime * 0.9)).r;
   float n2 = texture2D(uNoise, vec2(vUv.x * 3.0 + 0.3, vUv.y * 4.0 - uTime * 1.5)).r;
@@ -24,10 +29,11 @@ void main() {
   float edge = smoothstep(0.0, 0.18, vUv.x) * smoothstep(1.0, 0.82, vUv.x);
   float bottom = smoothstep(0.0, 0.12, vUv.y);
   float alpha = (0.4 + streak * 0.55) * edge * mix(1.0, 0.5, 1.0 - bottom);
-  vec3 col = mix(vec3(0.72, 0.84, 0.94), vec3(1.0), streak);
+  vec3 col = mix(vec3(0.72, 0.84, 0.94), vec3(1.0), streak) * uLight;
   gl_FragColor = vec4(col, alpha);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
+  #include <fog_fragment>
 }
 `;
 
@@ -100,10 +106,14 @@ export class AirTerjun extends Station {
     this.fallMat = new THREE.ShaderMaterial({
       vertexShader: fallVert,
       fragmentShader: fallFrag,
-      uniforms: { uTime: { value: 0 }, uNoise: { value: noiseTexture(256, 7) } },
+      uniforms: THREE.UniformsUtils.merge([
+        THREE.UniformsLib.fog,
+        { uTime: { value: 0 }, uNoise: { value: noiseTexture(256, 7) }, uLight: { value: new THREE.Color('#ffffff') } },
+      ]),
       transparent: true,
       depthWrite: false,
       side: THREE.DoubleSide,
+      fog: true,
     });
     const fallH = 8.4;
     const fall = new THREE.Mesh(new THREE.PlaneGeometry(1.7, fallH, 1, 8), this.fallMat);
@@ -187,7 +197,7 @@ export class AirTerjun extends Station {
     slip.position.y = this.groundAt(slip.position.x, slip.position.z) + 0.02;
     g.add(slip);
     const seatEye = tikar.position.clone().add(new THREE.Vector3(0, 0.95, 0));
-    const seatLook = new THREE.Vector3(this.poolCenter.x, 3, 7);
+    const seatLook = new THREE.Vector3(this.poolCenter.x, 1.6, 7);
     this.addSeat('tikar', flat, seatEye, seatLook, 'Tap to sit on the tikar', () => {
       this.ctx.ui.setHint(null);
     });
@@ -299,6 +309,13 @@ export class AirTerjun extends Station {
   override update(dt: number, time: number) {
     this.tickSeat(dt);
     this.fallMat.uniforms.uTime.value = time;
+    // the falling water is lit by the sky and the sun (or moon), so it dims with the day
+    const t = this.ctx.time;
+    const light = this.fallMat.uniforms.uLight.value as THREE.Color;
+    light.copy(t.hemi.color).multiplyScalar(t.hemi.intensity * 1.2);
+    light.r = Math.min(1, light.r + t.sun.color.r * t.sun.intensity * 0.5);
+    light.g = Math.min(1, light.g + t.sun.color.g * t.sun.intensity * 0.5);
+    light.b = Math.min(1, light.b + t.sun.color.b * t.sun.intensity * 0.5);
     this.mist.update(dt);
     this.thermosSteam.update(dt);
     if (this.seatedId && this.sitTime > 7 && !this.satMemory) {

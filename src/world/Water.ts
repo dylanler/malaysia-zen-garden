@@ -41,11 +41,13 @@ void main() {
   vec3 h = normalize(viewDir + uSunDir);
   float spec = pow(max(dot(nrm, h), 0.0), 160.0);
   col += uSunColor * spec * 0.8;
-  col += vec3(0.05) * smoothstep(0.62, 0.78, n1 * 0.5 + n2 * 0.5);
+  // ripple highlights are lit by the sky, so they dim with it at night
+  float skyLum = clamp(dot(uSky, vec3(0.2126, 0.7152, 0.0722)) * 2.0, 0.05, 1.0);
+  col += vec3(0.05) * skyLum * smoothstep(0.62, 0.78, n1 * 0.5 + n2 * 0.5);
   gl_FragColor = vec4(col, uOpacity);
-  #include <fog_fragment>
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
+  #include <fog_fragment>
 }
 `;
 

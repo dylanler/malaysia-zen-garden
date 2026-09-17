@@ -35,6 +35,30 @@ const KEYS: Key[] = [
   { hour: 24, top: '#0a0e2a', horizon: '#1a2547', sun: '#a9bbff', sunI: 0.3, hemiSky: '#26305a', hemiGround: '#141a24', hemiI: 0.55, fog: '#131b33', fogD: 0.016, water: '#0d1630', stars: 1, elev: -25, glow: 0, exposure: 0.9 },
 ];
 
+/**
+ * three.js mixes the fog colour into the frame after tone mapping, so it never passes through the
+ * renderer's ACES curve like everything else does. Run the fog colour through the same curve here
+ * (a port of three's ACESFilmicToneMapping) so distant objects fade into the sky instead of into a
+ * paler wash, which matters most at night when the curve darkens the sky considerably.
+ */
+function acesFilmic(c: THREE.Color, exposure: number) {
+  const k = exposure / 0.6;
+  const r = c.r * k;
+  const g = c.g * k;
+  const b = c.b * k;
+  const ir = 0.59719 * r + 0.35458 * g + 0.04823 * b;
+  const ig = 0.076 * r + 0.90834 * g + 0.01566 * b;
+  const ib = 0.0284 * r + 0.13383 * g + 0.83777 * b;
+  const fit = (v: number) => (v * (v + 0.0245786) - 0.000090537) / (v * (0.983729 * v + 0.432951) + 0.238081);
+  const fr = fit(ir);
+  const fg = fit(ig);
+  const fb = fit(ib);
+  c.r = clamp(1.60475 * fr - 0.53108 * fg - 0.07367 * fb, 0, 1);
+  c.g = clamp(-0.10208 * fr + 1.10813 * fg - 0.00605 * fb, 0, 1);
+  c.b = clamp(-0.00327 * fr - 0.07276 * fg + 1.07602 * fb, 0, 1);
+  return c;
+}
+
 const parsed = KEYS.map((k) => ({
   ...k,
   cTop: new THREE.Color(k.top),
@@ -174,7 +198,7 @@ export class TimeOfDay {
     this.hemi.color.lerpColors(a.cHemiSky, b.cHemiSky, s).lerp(new THREE.Color('#8fa3ad'), overcast * 0.5);
     this.hemi.groundColor.lerpColors(a.cHemiGround, b.cHemiGround, s);
     this.hemi.intensity = hemiI * lerp(1, 0.85, overcast);
-    this.fog.color.lerpColors(a.cFog, b.cFog, s).lerp(new THREE.Color('#97a9b0'), overcast * 0.7);
+    acesFilmic(this.fog.color.lerpColors(a.cFog, b.cFog, s).lerp(new THREE.Color('#97a9b0'), overcast * 0.7), exposure);
     this.fog.density = fogD * this.fogBoost;
     this.renderer.toneMappingExposure = exposure;
 
