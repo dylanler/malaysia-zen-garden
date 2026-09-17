@@ -462,8 +462,17 @@ export class JalanKenangan extends Station {
     }
     // signboard
     const text = kind === 'kopitiam' ? 'KOPITIAM' : kind === 'runcit' ? 'KEDAI RUNCIT' : kind === 'ubat' ? 'KEDAI UBAT' : 'No. 12';
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(kind === 'indian' ? 0.6 : 2.6, kind === 'indian' ? 0.3 : 0.7), new THREE.MeshStandardMaterial({ map: signTexture(text, kind === 'kopitiam' ? '#2b3a7a' : '#d9c9a3', kind === 'kopitiam' ? '#f6efe2' : '#3a2a1a'), roughness: 0.8 }));
-    sign.position.set(kind === 'indian' ? 1.2 : 0, kind === 'indian' ? 2.3 : 3.15, -side * 2.4);
+    const signW = kind === 'indian' ? 0.7 : 3.0;
+    const signH = kind === 'indian' ? 0.3 : 0.7;
+    const sign = new THREE.Mesh(
+      new THREE.PlaneGeometry(signW, signH),
+      new THREE.MeshStandardMaterial({
+        map: signTexture(text, kind === 'kopitiam' ? '#2b3a7a' : '#d9c9a3', kind === 'kopitiam' ? '#f6efe2' : '#3a2a1a', signW / signH),
+        roughness: 0.8,
+      }),
+    );
+    // proud of the wall so it never sinks into the plaster, and clear of the columns
+    sign.position.set(kind === 'indian' ? 1.2 : 0, kind === 'indian' ? 2.3 : 3.15, -side * 2.42);
     sign.rotation.y = side > 0 ? Math.PI : 0;
     shop.add(sign);
     if (kind === 'indian') {

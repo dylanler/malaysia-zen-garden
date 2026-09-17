@@ -372,7 +372,7 @@ export class RumahKampung extends Station {
       stack.add(b);
     }
     gerai.add(stack);
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.15), new THREE.MeshStandardMaterial({ map: signTexture('RM1'), roughness: 1 }));
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.15), new THREE.MeshStandardMaterial({ map: signTexture('RM1', '#d9c9a3', '#3a2a1a', 2), roughness: 1 }));
     sign.position.set(0.45, 0.95, -0.1);
     sign.rotation.x = -0.5;
     gerai.add(sign);
