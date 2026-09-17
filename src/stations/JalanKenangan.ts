@@ -7,6 +7,8 @@ import type { Interactable } from '../core/Interaction';
 
 const KOLAM_COLORS = ['#f6efe2', '#e53935', '#fdd835', '#43a047', '#8e24aa'];
 const LANTERN_COLORS = ['#e53935', '#fb8c00', '#43a047', '#1e88e5', '#ec407a'];
+/** Height of the top of the hanging wire above a lantern's centre. */
+const LANTERN_WIRE_TOP = 0.375;
 
 export class JalanKenangan extends Station {
   private kolamCanvas!: HTMLCanvasElement;
@@ -21,6 +23,7 @@ export class JalanKenangan extends Station {
   private lampLight!: THREE.PointLight;
   private lanterns: THREE.Group[] = [];
   private handLantern: THREE.Group | null = null;
+  private handPivot: THREE.Group | null = null;
   private handHolder = new THREE.Group();
   private lanternFlame: THREE.Sprite | null = null;
   private lanternLight: THREE.PointLight | null = null;
@@ -299,8 +302,9 @@ export class JalanKenangan extends Station {
         onTap: () => this.takeLantern(lantern, c),
       });
     });
+    // the holder sits at the tip of the carrying stick, where the lantern's wire hangs from
     this.ctx.camera.add(this.handHolder);
-    this.handHolder.position.set(0.28, -0.42, -0.55);
+    this.handHolder.position.set(0.22, -0.1, -0.78);
 
     // ---------------- putu bambu cart at the end of the street
     const cart = new THREE.Group();
@@ -529,24 +533,27 @@ export class JalanKenangan extends Station {
     candle.position.y = -0.09;
     const wire = cyl(0.004, 0.004, 0.25, 4, '#555555');
     wire.position.y = 0.25;
-    const stick = cyl(0.008, 0.008, 0.5, 5, '#c9b07a');
-    stick.rotation.z = Math.PI / 2 - 0.5;
-    stick.position.set(0.18, 0.4, 0);
-    stick.visible = false;
-    lantern.add(skin, ringTop, ringBot, candle, wire, stick);
+    lantern.add(skin, ringTop, ringBot, candle, wire);
     lantern.userData.skin = skin;
-    lantern.userData.stick = stick;
     return lantern;
   }
 
   private takeLantern(lantern: THREE.Group, color: string) {
     lantern.visible = false;
     const mine = this.buildLantern(color);
-    (mine.userData.stick as THREE.Mesh).visible = true;
-    mine.scale.setScalar(0.85);
-    mine.rotation.z = 0.05;
-    this.handHolder.add(mine);
+    // hang the lantern from the holder origin so it swings from the top of its wire
+    mine.position.y = -LANTERN_WIRE_TOP;
+    const pivot = new THREE.Group();
+    pivot.scale.setScalar(0.6);
+    pivot.add(mine);
+    // a short bamboo stick runs from the holder back toward the hand at the lower right of the view
+    const toHand = new THREE.Vector3(0.14, -0.36, 0.42);
+    const stick = cyl(0.009, 0.011, toHand.length(), 6, '#a88a5c');
+    stick.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), toHand.clone().normalize());
+    stick.position.copy(toHand).multiplyScalar(0.5);
+    this.handHolder.add(pivot, stick);
     this.handLantern = mine;
+    this.handPivot = pivot;
     this.ctx.synth.crinkle(0.4);
     this.lanternInteractable = this.add({
       id: 'jalan-hand-lantern',
@@ -586,6 +593,22 @@ export class JalanKenangan extends Station {
   override restore() {
     this.takeLantern(this.lanterns[0], LANTERN_COLORS[0]);
     this.lightLantern();
+  }
+
+  /** A new day: the lantern is back under the awning and the vilakku have burnt out overnight. */
+  override reset() {
+    super.reset();
+    if (this.lanternInteractable) this.remove(this.lanternInteractable);
+    this.lanternInteractable = null;
+    this.handHolder.clear();
+    this.handLantern = null;
+    this.handPivot = null;
+    this.lanternFlame = null;
+    this.lanternLight = null;
+    this.lanternLit = false;
+    for (const l of this.lanterns) l.visible = true;
+    for (const l of this.lamps) l.lit = false;
+    this.lampLight.intensity = 0;
   }
 
   private crackEggs() {
@@ -690,11 +713,11 @@ export class JalanKenangan extends Station {
       fm.opacity += ((l.lit ? 0.9 + Math.sin(time * 15 + l.flame.position.x) * 0.1 : 0) - fm.opacity) * Math.min(1, dt * 6);
       gm.opacity += ((l.lit ? 0.4 : 0) - gm.opacity) * Math.min(1, dt * 3);
     }
-    if (this.handLantern) {
-      // it swings a little with your walking, and the candle flickers
+    if (this.handLantern && this.handPivot) {
+      // it swings a little from the wire as you walk, and the candle flickers
       const w = this.ctx.locomotion.walking;
-      this.handLantern.rotation.z = 0.05 + Math.sin(time * 2.2) * 0.06 * (0.3 + w);
-      this.handLantern.rotation.x = Math.sin(time * 1.7) * 0.05 * (0.3 + w);
+      this.handPivot.rotation.z = 0.05 + Math.sin(time * 2.2) * 0.06 * (0.3 + w);
+      this.handPivot.rotation.x = Math.sin(time * 1.7) * 0.05 * (0.3 + w);
       if (this.lanternFlame) {
         (this.lanternFlame.material as THREE.SpriteMaterial).opacity = 0.85 + Math.sin(time * 19) * 0.12;
         this.lanternFlame.scale.set(0.075 + Math.sin(time * 23) * 0.006, 0.12 + Math.sin(time * 17) * 0.01, 1);
