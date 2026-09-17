@@ -1,8 +1,10 @@
-# Taman Tenang — a Malaysian Zen Garden
+# Taman Kenangan — a Malaysian Zen Garden
 
-> Working title. *Tenang* (BM) = calm, still, at peace. Alternatives: *Taman Kenangan* (garden of memories), *Laman Tenang*, or simply *Tenang*.
+> Title chosen: *Taman Kenangan* (garden of memories). The plan below was written under the working title *Taman Tenang*; the name is the only thing that changed.
 >
-> Plan v0.1. A slow, walkable, sound-led Three.js experience that reinterprets the zen garden through Malaysian millennial memory (roughly the childhoods of people born 1981–1996: late 80s to mid 2000s Malaysia), with equal, deliberate representation of Malay, Chinese, Indian, Kadazan-Dusun and Iban cultures.
+> Plan v0.1, plus a status note. A slow, walkable, sound-led Three.js experience that reinterprets the zen garden through Malaysian millennial memory (roughly the childhoods of people born 1981–1996: late 80s to mid 2000s Malaysia), with equal, deliberate representation of Malay, Chinese, Indian, Kadazan-Dusun and Iban cultures.
+>
+> **Status.** The Full tier (§15) is built: all eight stations with their signature interactions, the day arc, weather, the shared-scale sound garden and the finale, on desktop and touch. Every model, texture and sound is procedural (generated in the browser), which replaced the asset pipeline in §12 and the sourcing plan in §9.5 for this version; field recordings, hand-modelled hero objects and community review (§8.4, M8) remain the next steps. Decisions taken are recorded in §17. The README covers running and deploying.
 
 ---
 
@@ -637,20 +639,22 @@ No calendar estimates; each milestone lists what changes and what "done" means.
 
 ---
 
-## 17. Open decisions
+## 17. Decisions
 
-Recommended option listed first.
+Taken while building; the option chosen is listed first, with the alternatives that were considered.
 
-1. **Title:** *Taman Tenang* (recommended) / *Taman Kenangan* / *Tenang*.
-2. **Default locomotion:** Stroll with free roam in settings (recommended) / Free roam default.
-3. **Human presence:** traces only, no characters (recommended) / distant silhouettes / stylised characters.
-4. **Distant maghrib azan on the night return:** include as a muffled, distant, toggleable texture with no interaction (recommended, pending Malay consultant review) / omit.
-5. **Art style:** flat low-poly vertex colour with a few hand-painted hero textures (recommended) / fully painterly textured.
-6. **First target:** MVP tier then expand (recommended) / Full tier from the start.
-7. **Start station:** Rumah Kampung as home (recommended) / the Padang as a neutral threshold.
-8. **Sound sourcing:** CC0 plus original recordings by the project team in Malaysia (recommended if feasible) / CC0 only.
-9. **Who writes the memory lines:** drafts here, rewritten with one contributor per community (recommended) / team-only.
-10. **Who models the cultural hero objects:** in-house Blender / commissioned; this is the largest single production cost either way.
+1. **Title:** *Taman Kenangan* (chosen: the garden is about memory more than stillness) / *Taman Tenang* / *Tenang*.
+2. **Default locomotion:** Stroll, with free roam in the menu (chosen). Free roam hands back to the path at the jetties, since the sampan only knows the one route.
+3. **Human presence:** traces only, no characters (chosen): a steaming cup, slippers on a rock, a half-played congkak, a cat asleep on a table.
+4. **Distant maghrib azan on the night return:** omitted (chosen, at the owner's request). Religious elements appear only where they are also cultural and are handled as such: vilakku at a doorway, pelita at a gate, a wakaf on the roadside. Nothing sacred is interactive.
+5. **Art style:** flat low-poly with vertex colour and procedural canvas textures for batik, pua kumbu, tiles, zinc and planks (chosen). Fully procedural geometry replaced hand-modelled heroes for this version.
+6. **First target:** Full tier from the start (chosen): all eight stations, each with its signature and most of its secondary interactions.
+7. **Start station:** Rumah Kampung as home (chosen). The day begins a few steps short of the house, looking at it, and ends at its gate.
+8. **Sound sourcing:** fully synthesised in the browser with Web Audio (chosen for this version): instruments, birds, insects, rain, water and wind are all procedural, which keeps the bundle small and avoids licensing questions. Field recordings remain a next step.
+9. **Memory lines:** drafted in this plan and in `src/content/stations.ts`; to be rewritten with one contributor per community before the garden is called finished.
+10. **Hero objects:** procedural for this version; commissioning or in-house modelling remains the largest production cost of a later, textured version.
+
+Two technical decisions made during verification are worth recording: the fog colour is run through the same ACES curve as the rest of the frame (three.js applies fog after tone mapping), so distances fade into the sky at night instead of into a paler wash; and every custom shader applies fog after tone mapping and colour-space conversion, matching the built-in materials.
 
 ---
 
