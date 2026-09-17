@@ -28,7 +28,7 @@ const KEY = 'taman-kenangan.v1';
 
 const defaultSettings = (): Settings => ({
   volume: 0.8,
-  locomotion: 'stroll',
+  locomotion: 'free',
   quality: 'auto',
   reducedMotion: typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches,
   hints: true,
@@ -52,6 +52,8 @@ export class Save {
     const data = this.read();
     this.settings = { ...defaultSettings(), ...(data?.settings ?? {}) };
     this.progress = { ...defaultProgress(), ...(data?.progress ?? {}) };
+    // saves from before first-person controls default to the path; start them free roaming like everyone else
+    if (data && data.version < 2) this.settings.locomotion = 'free';
   }
 
   private read(): SaveData | null {
@@ -59,7 +61,7 @@ export class Save {
       const raw = localStorage.getItem(KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw) as SaveData;
-      if (parsed.version !== 1) return null;
+      if (parsed.version !== 1 && parsed.version !== 2) return null;
       return parsed;
     } catch {
       return null;
@@ -71,7 +73,7 @@ export class Save {
     const write = () => {
       this.timer = null;
       try {
-        const data: SaveData = { version: 1, settings: this.settings, progress: this.progress };
+        const data: SaveData = { version: 2, settings: this.settings, progress: this.progress };
         localStorage.setItem(KEY, JSON.stringify(data));
       } catch {
         /* storage unavailable: the walk still works */

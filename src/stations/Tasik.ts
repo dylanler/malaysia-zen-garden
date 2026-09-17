@@ -407,18 +407,26 @@ export class Tasik extends Station {
     const onWater = loco.onWater;
     const night = this.ctx.time.night;
 
-    // free roam cannot reach the water: the path takes over at the jetty
+    // free roam cannot reach the water: the path takes over at the jetty, and lets go again on the far shore
     if (loco.mode === 'free') {
       for (const j of this.jetties) {
-        if (loco.position.distanceTo(j.shore) < 2.8) {
+        if (loco.position.distanceTo(j.shore) < 3.6) {
           loco.setMode('stroll');
-          this.ctx.save.settings.locomotion = 'stroll';
-          this.ctx.save.flush();
-          this.ctx.ui.setJoystickVisible(false);
-          this.ctx.ui.setLocomotionOption('stroll');
-          this.ctx.ui.toast('The sampan only knows the one path. Walking is set to stroll for the crossing; hold the round button or W.', 7000);
+          this.ctx.ui.toast(
+            this.ctx.input.isTouch
+              ? 'The sampan only knows the one path. Push the joystick forward to follow it across.'
+              : 'The sampan only knows the one path. Hold W to follow it across.',
+            7000,
+          );
           break;
         }
+      }
+    } else if (this.ctx.save.settings.locomotion === 'free' && loco.surface === 'land' && !loco.locked) {
+      // the player chose free roam; the path only had it on loan for the crossing
+      const nearJetty = this.jetties.some((j) => loco.position.distanceTo(j.shore) < 4.4);
+      if (!nearJetty) {
+        loco.setMode('free');
+        this.ctx.ui.toast('Back on land. Wander where you like.');
       }
     }
 

@@ -33,6 +33,8 @@ export class Locomotion {
   /** Called when the auto-walk reaches its stop. */
   onArrive: (() => void) | null = null;
   lookSensitivity = 0.0034;
+  /** Camera zoom factor (1 = normal); look sensitivity scales down with it. */
+  zoom = 1;
   private eyeY = 0;
   private bobPhase = 0;
   private lastStepPhase = 0;
@@ -62,6 +64,8 @@ export class Locomotion {
     this.eyeY = this.position.y + (this.surface === 'water' ? EYE_BOAT : EYE);
     this.autoWalk = false;
     this.autoTarget = null;
+    // only the path knows the jetty and the sampan; free roam resumes ashore
+    if (this.surface !== 'land') this.mode = 'stroll';
   }
 
   faceAlongPath() {
@@ -94,6 +98,8 @@ export class Locomotion {
     if (mode === 'stroll') {
       this.u = this.path.nearestU(this.position.x, this.position.z);
       this.path.getPoint(this.u, this.position);
+      this.surface = this.path.surfaceAt(this.u);
+      this.position.y = this.groundY(this.position.x, this.position.z, this.surface);
     }
     this.mode = mode;
     this.autoWalk = false;
@@ -128,6 +134,9 @@ export class Locomotion {
   stand() {
     this.seat = null;
     this.locked = false;
+    // stop easing toward the seat's outlook once you are up
+    this.targetYaw = null;
+    this.targetPitch = null;
   }
 
   get onWater() {
@@ -139,7 +148,7 @@ export class Locomotion {
     // look
     const look = input.consumeLook();
     if (!this.locked || this.seat) {
-      const sens = this.lookSensitivity * (input.isTouch ? 1.15 : 1);
+      const sens = (this.lookSensitivity * (input.isTouch ? 1.15 : input.locked ? 0.72 : 1)) / this.zoom;
       this.yaw -= look.dx * sens;
       this.pitch -= look.dy * sens;
       this.pitch = clamp(this.pitch, -1.25, 1.35);
@@ -207,7 +216,12 @@ export class Locomotion {
       dir = input.moveY < 0 ? 1 : -1;
     }
     if (dir === 0) return 0;
-    const speed = this.surface === 'water' ? 0.9 : 1.25;
+    return this.followPath(dt, dir);
+  }
+
+  /** Advance along the path; shared by strolling and by auto-walk in either mode. */
+  private followPath(dt: number, dir: number): number {
+    const speed = this.surface === 'water' ? 1.35 : 1.9;
     const du = (speed * dt) / this.path.length;
     const prev = this.u;
     let next = this.u + du * dir;
@@ -232,8 +246,17 @@ export class Locomotion {
     const mx = input.moveX;
     const my = input.moveY;
     const len = Math.hypot(mx, my);
+    if (input.consumeAutoWalkToggle()) {
+      if (this.autoWalk) this.stopAuto();
+      else this.autoWalkToNext();
+    }
+    if (this.autoWalk) {
+      // any step of your own takes over from the auto-walk
+      if (len > 0.3) this.stopAuto();
+      else return this.autoWalkFree(dt);
+    }
     if (len < 0.05) return 0;
-    const speed = 1.7 * Math.min(1, len);
+    const speed = 2.55 * Math.min(1, len);
     const fx = -Math.sin(this.yaw);
     const fz = -Math.cos(this.yaw);
     const rx = Math.cos(this.yaw);
@@ -257,6 +280,23 @@ export class Locomotion {
     this.position.set(x, this.terrain.height(x, z), z);
     this.u = this.path.nearestU(x, z);
     return Math.min(1, len);
+  }
+
+  /** Auto-walk while free roaming: first rejoin the path at the nearest point, then follow it. */
+  private autoWalkFree(dt: number): number {
+    this.path.getPoint(this.u, this.tmp);
+    const dx = this.tmp.x - this.position.x;
+    const dz = this.tmp.z - this.position.z;
+    const d = Math.hypot(dx, dz);
+    const step = 2.2 * dt;
+    if (d > step + 0.05) {
+      const x = this.position.x + (dx / d) * step;
+      const z = this.position.z + (dz / d) * step;
+      this.surface = 'land';
+      this.position.set(x, this.terrain.height(x, z), z);
+      return 1;
+    }
+    return this.followPath(dt, 1);
   }
 
   /** World position of the "hands" (for fireflies, lanterns). */

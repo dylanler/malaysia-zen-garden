@@ -28,8 +28,11 @@
           <p class="fine">Headphones recommended · Walk slowly · Nothing here can be failed</p>
           <p class="fine" id="resume-note"></p>
           <p class="fine controls-note">
-            <span class="desktop-only">Hold <kbd>W</kbd> to stroll · Tap <kbd>Space</kbd> to auto-walk · Drag to look · Click things that glow</span>
-            <span class="touch-only">Hold the round button to stroll · Drag to look · Tap things that glow</span>
+            <span class="desktop-only"
+              ><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> to walk · Move the mouse to look · Click things that glow · Scroll to zoom ·
+              <kbd>Space</kbd> to auto-walk · <kbd>Esc</kbd> for the menu</span
+            >
+            <span class="touch-only">Joystick to walk · Drag to look · Tap things that glow · Pinch to zoom · Tap the round button to auto-walk</span>
           </p>
         </div>
       </section>
@@ -50,13 +53,14 @@
         <div id="hint" class="hidden"></div>
         <div id="toast" class="hidden"></div>
 
-        <button id="walk" aria-label="Hold to stroll">
+        <button id="walk" aria-label="Hold to walk, tap to auto-walk">
           <span class="ring"></span>
           <span class="dot"></span>
         </button>
-        <div id="walk-label">hold to stroll · tap to auto-walk</div>
+        <div id="walk-label"><span class="touch-only">hold to walk · tap to auto-walk</span><span class="desktop-only">WASD walk · Space auto-walk · scroll zoom · Esc menu</span></div>
 
         <div id="joystick" class="hidden"><div class="knob"></div></div>
+        <div id="reticle" class="hidden" aria-hidden="true"></div>
 
         <button id="menu-btn" aria-label="Menu">
           <span></span><span></span><span></span>
@@ -76,8 +80,8 @@
           <div class="row">
             <label for="opt-loco">Walking</label>
             <select id="opt-loco">
-              <option value="stroll">Stroll along the path</option>
-              <option value="free">Free roam</option>
+              <option value="free">Free roam (WASD / joystick)</option>
+              <option value="stroll">Follow the path</option>
             </select>
           </div>
           <div class="row">

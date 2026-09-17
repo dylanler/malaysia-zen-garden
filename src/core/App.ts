@@ -22,6 +22,8 @@ import type { Station, StationContext, Quality } from '../stations/Station';
 import { createStations } from '../stations';
 import { STATIONS, STATION_BY_ID, type StationId } from '../content/stations';
 
+const ZOOM_MAX = 2.6;
+
 const INSTRUMENTS: Partial<Record<StationId, InstrumentName>> = {
   rumah: 'gamelan',
   airterjun: 'plink',
@@ -69,6 +71,9 @@ export class App {
   private startTime = 0;
   private handPos = new THREE.Vector3();
   private stepAlt = false;
+  private baseFov = 62;
+  private zoom = 1;
+  private zoomTarget = 1;
 
   constructor() {
     const s = this.save.settings;
@@ -79,6 +84,7 @@ export class App {
     this.dpr = Math.min(window.devicePixelRatio || 1, this.dprCap);
 
     this.ui = new UI(s);
+    this.ui.mouseVerbs = !isTouchDevice();
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.ui.canvas,
       antialias: !low,
@@ -94,7 +100,8 @@ export class App {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     const portrait = window.innerHeight > window.innerWidth;
-    this.camera = new THREE.PerspectiveCamera(mobile ? (portrait ? 74 : 66) : 62, window.innerWidth / window.innerHeight, 0.05, 800);
+    this.baseFov = mobile ? (portrait ? 74 : 66) : 62;
+    this.camera = new THREE.PerspectiveCamera(this.baseFov, window.innerWidth / window.innerHeight, 0.05, 800);
     this.scene.add(this.camera);
 
     // world
@@ -165,6 +172,7 @@ export class App {
       weather: this.weather,
       interaction: this.interaction,
       locomotion: this.locomotion,
+      input: this.input,
       audio: this.audio,
       synth: this.synth,
       music: this.music,
@@ -200,7 +208,13 @@ export class App {
       this.save.resetProgress();
       location.reload();
     });
-    this.ui.setJoystickVisible(s.locomotion === 'free');
+    // the menu needs the cursor; the garden takes it back when the menu closes
+    this.ui.onMenuToggle((open) => {
+      if (open) this.input.unlock();
+      else if (this.started) this.input.lock();
+    });
+    this.ui.setJoystickVisible(this.input.isTouch);
+    this.ui.setWalkVisible(this.input.isTouch);
     this.ui.setProgress(this.save.progress.visited, this.save.progress.completed, null);
 
     window.addEventListener('resize', () => this.onResize());
@@ -242,6 +256,12 @@ export class App {
       fog: `#${this.time.fog.color.getHexString()}`,
       night: this.time.night,
       finale: this.music.finaleRunning,
+      locked: this.input.locked,
+      mode: this.locomotion.mode,
+      zoom: Number(this.zoom.toFixed(2)),
+      fov: Number(this.camera.fov.toFixed(1)),
+      pos: [Number(this.locomotion.position.x.toFixed(2)), Number(this.locomotion.position.z.toFixed(2))],
+      menu: this.ui.menuOpen,
     });
     const hook = Object.assign(state, {
       teleport: (id: StationId, offsetMeters = 0) => {
@@ -250,6 +270,19 @@ export class App {
       },
       setHour: (h: number) => this.time.setHour(h),
       interactables: () => this.interaction.debugList(),
+      lookAt: (x: number, y: number, z: number) => {
+        const dx = x - this.camera.position.x;
+        const dy = y - this.camera.position.y;
+        const dz = z - this.camera.position.z;
+        this.locomotion.yaw = Math.atan2(-dx, -dz);
+        this.locomotion.pitch = Math.atan2(dy, Math.hypot(dx, dz));
+      },
+      stationLocal: (id: StationId, x: number, y: number, z: number) => {
+        const st = this.stations.find((s) => s.def.id === id);
+        if (!st) return null;
+        const w = st.group.localToWorld(new THREE.Vector3(x, y, z));
+        return [w.x, w.y, w.z];
+      },
       face: (id: string) => {
         const it = this.interaction.debugList().find((r) => r.id === id);
         if (!it) return false;
@@ -257,7 +290,7 @@ export class App {
         const dx = x - this.camera.position.x;
         const dy = y - this.camera.position.y;
         const dz = z - this.camera.position.z;
-        this.locomotion.yaw = Math.atan2(-dx, -dz);
+        this.locomotion.faceToward(new THREE.Vector3(x, y, z));
         this.locomotion.pitch = Math.atan2(dy, Math.hypot(dx, dz));
         return true;
       },
@@ -287,16 +320,27 @@ export class App {
     this.startTime = performance.now();
     this.timer.connect(document);
     this.timer.reset();
+    // desktop: take the mouse for first-person look right away (still inside the click that entered)
+    this.input.lock();
     this.loop();
   }
 
   private applySettings(s: typeof this.save.settings) {
     this.audio.setVolume(s.volume);
     this.locomotion.reducedMotion = s.reducedMotion;
-    if (s.locomotion !== this.locomotion.mode) {
+    // (never mid-crossing: the sampan has the path on loan until the far shore)
+    if (s.locomotion !== this.locomotion.mode && this.locomotion.surface === 'land') {
       this.locomotion.setMode(s.locomotion);
-      this.ui.setJoystickVisible(s.locomotion === 'free');
-      this.ui.toast(s.locomotion === 'free' ? 'Free roam: walk with WASD or the joystick.' : 'Stroll: hold the round button or W to follow the path.');
+      const touch = this.input.isTouch;
+      this.ui.toast(
+        s.locomotion === 'free'
+          ? touch
+            ? 'Free roam: walk with the joystick.'
+            : 'Free roam: walk with WASD.'
+          : touch
+            ? 'Following the path: push the joystick forward, or tap the round button to auto-walk.'
+            : 'Following the path: hold W, or tap Space to auto-walk.',
+      );
     }
     const { low: wantLow, shadows: wantShadows } = App.decideQuality(s.quality, this.quality.mobile);
     if (wantShadows !== this.quality.shadows || wantLow !== this.quality.low) {
@@ -313,9 +357,23 @@ export class App {
     const h = window.innerHeight;
     this.camera.aspect = w / h;
     const portrait = h > w;
-    this.camera.fov = this.quality.mobile ? (portrait ? 74 : 66) : 62;
+    this.baseFov = this.quality.mobile ? (portrait ? 74 : 66) : 62;
+    this.camera.fov = this.baseFov / this.zoom;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
+  }
+
+  /** Scroll or pinch to zoom: a gentle telephoto for looking at something far off, eased both ways. */
+  private updateZoom(dt: number) {
+    const dz = this.input.consumeZoom();
+    if (dz !== 0) this.zoomTarget = clamp(this.zoomTarget * Math.exp(dz * 0.9), 1, ZOOM_MAX);
+    const next = this.zoom + (this.zoomTarget - this.zoom) * Math.min(1, dt * 9);
+    if (Math.abs(next - this.zoom) > 1e-4) {
+      this.zoom = next;
+      this.camera.fov = this.baseFov / this.zoom;
+      this.camera.updateProjectionMatrix();
+      this.locomotion.zoom = this.zoom;
+    }
   }
 
   private adaptResolution(dtMs: number) {
@@ -344,10 +402,21 @@ export class App {
     if (document.hidden) return;
 
     this.input.poll();
-    if (this.input.consumeMenuRequest()) this.ui.toggleMenu();
+    // Esc: the browser lets go of the mouse first; that alone should put things down / open the menu
+    const lockLost = this.input.consumeLockLost();
+    const menuKey = this.input.consumeMenuRequest();
+    if (lockLost) {
+      if (this.hands.active) this.hands.close();
+      else this.ui.openMenu();
+    } else if (menuKey) {
+      if (this.hands.active && !this.ui.menuOpen) this.hands.close();
+      else this.ui.toggleMenu();
+    }
     if (this.ui.menuOpen) {
       this.input.consumeLook();
+      this.input.consumeZoom();
     }
+    this.updateZoom(dt);
 
     this.locomotion.update(dt);
     this.ui.setWalkAuto(this.locomotion.autoWalk);
@@ -380,9 +449,13 @@ export class App {
     this.music.update(dt);
 
     // ui
+    this.interaction.reticle = this.input.locked;
+    this.ui.setReticle(this.input.locked && !this.ui.menuOpen, this.interaction.hovered !== null);
     let hint = this.interaction.hintText();
     if (!hint && !this.movedOnce && performance.now() - this.startTime > 9000 && !this.hands.active) {
-      hint = this.input.isTouch ? 'Hold the round button to stroll · drag to look around' : 'Hold W or Space to stroll · drag to look around';
+      if (this.input.isTouch) hint = 'Push the joystick to walk · drag to look around · tap the round button to auto-walk';
+      else if (this.locomotion.mode === 'free') hint = 'W A S D to walk · move the mouse to look · Space to auto-walk';
+      else hint = 'Hold W to follow the path · Space to auto-walk · move the mouse to look';
     }
     if (this.locomotion.seat && !hint) hint = 'Tap anywhere to stand up';
     this.ui.setHint(hint);

@@ -27,9 +27,11 @@ export class UI {
   private hintText: string | null = null;
   private afterword: string | null = null;
   private afterwordShownAt = 0;
+  private reticle = $<HTMLElement>('#reticle');
   private closeFocusCbs: (() => void)[] = [];
   private settingsCbs: ((s: Settings) => void)[] = [];
   private resetCbs: (() => void)[] = [];
+  private menuCbs: ((open: boolean) => void)[] = [];
   menuOpen = false;
 
   constructor(private settings: Settings) {
@@ -104,15 +106,23 @@ export class UI {
     this.resetCbs.push(cb);
   }
 
+  onMenuToggle(cb: (open: boolean) => void) {
+    this.menuCbs.push(cb);
+  }
+
   openMenu() {
+    if (this.menuOpen) return;
     this.menuOpen = true;
     this.menu.classList.remove('hidden');
+    this.menuCbs.forEach((cb) => cb(true));
   }
 
   closeMenu() {
+    if (!this.menuOpen) return;
     this.menuOpen = false;
     this.menu.classList.add('hidden');
     this.about.classList.add('hidden');
+    this.menuCbs.forEach((cb) => cb(false));
   }
 
   toggleMenu() {
@@ -158,6 +168,9 @@ export class UI {
     this.afterword = null;
   }
 
+  /** With a mouse, hints say "click" where a finger would "tap". */
+  mouseVerbs = false;
+
   /** Called every frame with the interaction hint (or null). */
   setHint(text: string | null) {
     let show: string | null = text;
@@ -166,6 +179,7 @@ export class UI {
     if (show === this.hintText) return;
     this.hintText = show;
     if (show) {
+      if (this.mouseVerbs) show = show.replace(/\bTap\b/g, 'Click').replace(/\btap\b/g, 'click').replace(/\bSwipe\b/g, 'Drag').replace(/\bswipe\b/g, 'drag');
       this.hint.textContent = show;
       this.hint.classList.remove('hidden');
     } else {
@@ -205,11 +219,16 @@ export class UI {
 
   setWalkVisible(on: boolean) {
     this.walkButton.style.display = on ? '' : 'none';
-    $('#walk-label').style.display = on ? '' : 'none';
   }
 
   setJoystickVisible(on: boolean) {
     this.joystick.classList.toggle('hidden', !on);
+  }
+
+  /** The first-person reticle: shown while the mouse is captured, brighter over something touchable. */
+  setReticle(visible: boolean, over: boolean) {
+    this.reticle.classList.toggle('hidden', !visible);
+    this.reticle.classList.toggle('over', over);
   }
 
   /** Reflect a locomotion change made by the world (e.g. boarding the sampan) in the menu. */
