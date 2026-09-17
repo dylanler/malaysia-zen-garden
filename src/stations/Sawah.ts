@@ -269,7 +269,7 @@ export class Sawah extends Station {
     const seatLegs = box(1.0, 0.4, 0.3, '#6e4a2c');
     this.settle(seatLegs, -2.5, -2.4, 0.2);
     g.add(seatPlank, seatLegs);
-    this.addSeat('field', seatPlank, new THREE.Vector3(-2.5, 1.35, -2.4), new THREE.Vector3(-2.5, 20, 60), 'Tap to sit and look at Kinabalu');
+    this.addSeat('field', seatPlank, new THREE.Vector3(-2.5, 1.35, -2.4), new THREE.Vector3(-2.5, 9, 60), 'Tap to sit and look at Kinabalu');
   }
 
   private strike(gg: { mesh: THREE.Group; swing: number; note: number; big: boolean }) {

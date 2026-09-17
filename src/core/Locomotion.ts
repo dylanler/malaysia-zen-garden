@@ -40,6 +40,7 @@ export class Locomotion {
   private tmp = new THREE.Vector3();
   private forwardXZ = new THREE.Vector2();
   private targetYaw: number | null = null;
+  private targetPitch: number | null = null;
 
   constructor(
     private camera: THREE.PerspectiveCamera,
@@ -69,11 +70,23 @@ export class Locomotion {
     this.pitch = -0.05;
   }
 
+  /** Face a world point immediately (before the first frame has placed the camera). */
+  faceToward(point: THREE.Vector3) {
+    const dx = point.x - this.position.x;
+    const dz = point.z - this.position.z;
+    this.yaw = Math.atan2(-dx, -dz);
+    this.pitch = -0.02;
+    this.targetYaw = null;
+    this.targetPitch = null;
+  }
+
   /** Smoothly turn to face a world point (used when sitting down / arriving). */
-  lookAt(point: THREE.Vector3) {
-    const dx = point.x - this.camera.position.x;
-    const dz = point.z - this.camera.position.z;
+  lookAt(point: THREE.Vector3, from: THREE.Vector3 = this.camera.position) {
+    const dx = point.x - from.x;
+    const dy = point.y - from.y;
+    const dz = point.z - from.z;
     this.targetYaw = Math.atan2(-dx, -dz);
+    this.targetPitch = clamp(Math.atan2(dy, Math.hypot(dx, dz)), -1.25, 1.35);
   }
 
   setMode(mode: LocomotionMode) {
@@ -109,7 +122,7 @@ export class Locomotion {
     this.seat = { eye: eye.clone() };
     this.locked = true;
     this.stopAuto();
-    if (lookAt) this.lookAt(lookAt);
+    if (lookAt) this.lookAt(lookAt, eye);
   }
 
   stand() {
@@ -131,12 +144,18 @@ export class Locomotion {
       this.pitch -= look.dy * sens;
       this.pitch = clamp(this.pitch, -1.25, 1.35);
       if (Math.abs(look.dx) > 0.5) this.targetYaw = null;
+      if (Math.abs(look.dy) > 0.5) this.targetPitch = null;
     }
     if (this.targetYaw !== null) {
       let d = this.targetYaw - this.yaw;
       d = Math.atan2(Math.sin(d), Math.cos(d));
       this.yaw += d * Math.min(1, dt * 3);
       if (Math.abs(d) < 0.01) this.targetYaw = null;
+    }
+    if (this.targetPitch !== null) {
+      const d = this.targetPitch - this.pitch;
+      this.pitch += d * Math.min(1, dt * 3);
+      if (Math.abs(d) < 0.01) this.targetPitch = null;
     }
 
     let moving = 0;
