@@ -165,18 +165,43 @@ export class Ambience {
     this.layer(
       'roof',
       () => {
-        const n = e.noiseSource('white');
-        const bp = e.filter('bandpass', 2400, 5);
-        const bp2 = e.filter('bandpass', 3900, 7);
+        // rain on corrugated zinc: hundreds of drops a second, each ringing an inharmonic set of
+        // metallic partials, over the dull thrum of the sheet itself
         const mix = e.gain(1);
-        n.connect(bp);
-        n.connect(bp2);
-        bp.connect(mix);
-        bp2.connect(mix);
+        const drops = e.noiseSource('crackle');
+        const partials: [number, number, number][] = [
+          // frequency, Q, gain
+          [1180, 22, 0.55],
+          [1760, 26, 0.5],
+          [2540, 30, 0.42],
+          [3390, 32, 0.34],
+          [4720, 34, 0.24],
+          [6300, 30, 0.14],
+        ];
+        for (const [f, q, g] of partials) {
+          const bp = e.filter('bandpass', f, q);
+          const gn = e.gain(g);
+          drops.connect(bp);
+          bp.connect(gn);
+          gn.connect(mix);
+        }
+        // the sheet: a low, slightly boomy body driven by the same drops
+        const body = e.filter('bandpass', 210, 2.2);
+        const bodyG = e.gain(0.9);
+        drops.connect(body);
+        body.connect(bodyG);
+        bodyG.connect(mix);
+        // a whisper of the broadband hiss so the pings sit in a wash rather than in silence
+        const hiss = e.noiseSource('white');
+        const hp = e.filter('highpass', 2500, 0.7);
+        const hissG = e.gain(0.06);
+        hiss.connect(hp);
+        hp.connect(hissG);
+        hissG.connect(mix);
         return mix;
       },
       'weather',
-      0.35,
+      0.45,
     );
 
     this.layer('cicada', () => {
@@ -514,6 +539,40 @@ export class Ambience {
     o.stop(t0 + 0.3);
   }
 
+  /** A single heavy drop on the zinc: a bright inharmonic "tink" with a hard attack, no pitch slide. */
+  private zincPing(level: number) {
+    if (!this.e.ready) return;
+    const t0 = this.e.now;
+    const f = 1900 + Math.random() * 2600;
+    const g = this.e.gain(0);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.06 * level, t0 + 0.0015);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.09 + Math.random() * 0.08);
+    for (const [ratio, amp] of [
+      [1, 1],
+      [1.47, 0.55],
+      [2.09, 0.3],
+    ]) {
+      const o = this.e.osc('sine', f * ratio);
+      const og = this.e.gain(amp);
+      o.connect(og);
+      og.connect(g);
+      o.start(t0);
+      o.stop(t0 + 0.2);
+    }
+    // the drop itself: a click of noise through a high bandpass
+    const n = this.e.noiseSource('white');
+    const bp = this.e.filter('bandpass', f * 1.9, 3);
+    const ng = this.e.gain(0);
+    ng.gain.setValueAtTime(0.4, t0);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.012);
+    n.connect(bp);
+    bp.connect(ng);
+    ng.connect(g);
+    n.stop(t0 + 0.03);
+    this.e.out(g, 'weather', 0.25);
+  }
+
   // ---------------- control
 
   setZone(zone: ZoneId) {
@@ -615,12 +674,14 @@ export class Ambience {
       }
     }
 
-    // random roof drips ping a little faster under the roof
+    // under the zinc, the heavier drops ring out individually, faster as the rain thickens
     if (this.weather.sheltered && this.weather.rain > 0.3) {
       this.roofDripTimer -= dt;
       if (this.roofDripTimer <= 0) {
-        this.roofDripTimer = 0.15 + Math.random() * 0.6;
-        this.drip(0.5);
+        const rain = this.weather.rain;
+        this.roofDripTimer = (0.05 + Math.random() * 0.3) / (0.5 + rain);
+        this.zincPing(0.35 + rain * 0.4);
+        if (Math.random() < 0.15) this.drip(0.4);
       }
     }
   }

@@ -1,4 +1,5 @@
 export type BusName = 'ambience' | 'weather' | 'music' | 'sfx';
+export type NoiseKind = 'white' | 'pink' | 'brown' | 'crackle';
 
 /**
  * Web Audio graph. Everything in the garden is synthesised; there are no audio files.
@@ -103,7 +104,7 @@ export class AudioEngine {
     return buf;
   }
 
-  noiseBuffer(kind: 'white' | 'pink' | 'brown') {
+  noiseBuffer(kind: NoiseKind) {
     let b = this.noiseBuffers.get(kind);
     if (b) return b;
     const ctx = this.ctx!;
@@ -113,6 +114,16 @@ export class AudioEngine {
     const d = b.getChannelData(0);
     if (kind === 'white') {
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    } else if (kind === 'crackle') {
+      // sparse impulses (a few hundred a second): the individual drops that excite a resonant sheet
+      const perSecond = 320;
+      for (let i = 0; i < len; i++) {
+        if (Math.random() < perSecond / rate) {
+          const a = (0.3 + Math.random() * 0.7) * (Math.random() < 0.5 ? 1 : -1);
+          d[i] = a;
+          if (i + 1 < len) d[i + 1] = -a * 0.6;
+        }
+      }
     } else if (kind === 'pink') {
       let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
       for (let i = 0; i < len; i++) {
@@ -144,7 +155,7 @@ export class AudioEngine {
     return b;
   }
 
-  noiseSource(kind: 'white' | 'pink' | 'brown') {
+  noiseSource(kind: NoiseKind) {
     const src = this.ctx!.createBufferSource();
     src.buffer = this.noiseBuffer(kind);
     src.loop = true;
