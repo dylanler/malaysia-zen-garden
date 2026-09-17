@@ -19,9 +19,12 @@ npm run preview    # serve the production bundle locally
 
 ## Controls
 
-- **Desktop:** hold `W` (or the round button) to stroll along the path, tap `Space` to auto-walk to the next place, drag to look, click things that glow. `Esc` opens the menu.
-- **Touch:** hold the round button to stroll, tap it to auto-walk, drag anywhere to look, tap things that glow. Free roam (menu → Walking) adds a virtual joystick.
-- Hints appear near the bottom of the screen; every interaction is a tap, a hold, a drag or a flick. Nothing can be failed and there are no timers.
+The garden is first person. Free roam is the default; "Follow the path" (menu → Walking) is there for anyone who would rather be led.
+
+- **Desktop:** `W A S D` to walk, move the mouse to look (the mouse is captured on the first click; `Esc` releases it and opens the menu), scroll to zoom, click / hold / drag with the centre reticle on things that glow, `E` or `Enter` also "clicks". Tap `Space` to auto-walk to the next place; any step of your own cancels it.
+- **Touch:** joystick (bottom left) to walk, drag anywhere to look, pinch to zoom, tap things that glow. The round button (bottom right) walks forward while held and auto-walks to the next place when tapped.
+- The sampan only knows the path: walking up to a jetty hands you to it for the crossing, and free roam comes back on the far shore.
+- Cues appear as you come near: a ring on the thing itself and a hint at the bottom of the screen. Every interaction is a tap, a hold, a drag or a flick. Nothing can be failed and there are no timers.
 
 Progress and settings are kept in `localStorage`; "Start the day again" in the menu clears progress.
 

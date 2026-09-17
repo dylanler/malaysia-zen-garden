@@ -8,6 +8,7 @@ import type { TimeOfDay } from '../core/TimeOfDay';
 import type { Weather } from '../core/Weather';
 import type { Interaction, Interactable } from '../core/Interaction';
 import type { Locomotion } from '../core/Locomotion';
+import type { Input } from '../core/Input';
 import type { AudioEngine } from '../audio/AudioEngine';
 import type { Synth } from '../audio/Synth';
 import type { Music } from '../audio/Music';
@@ -35,6 +36,7 @@ export interface StationContext {
   weather: Weather;
   interaction: Interaction;
   locomotion: Locomotion;
+  input: Input;
   audio: AudioEngine;
   synth: Synth;
   music: Music;

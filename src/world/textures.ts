@@ -430,17 +430,32 @@ export function noiseTexture(size = 256, seed = 1) {
   });
 }
 
-export function signTexture(text: string, bg = '#d9c9a3', fg = '#3a2a1a') {
-  const { c, ctx } = canvas(256, 128);
+/** A painted signboard. The lettering is sized to fit the board with a margin, however long the name. */
+export function signTexture(text: string, bg = '#d9c9a3', fg = '#3a2a1a', aspect = 4) {
+  const h = 128;
+  const w = Math.round(h * aspect);
+  const { c, ctx } = canvas(w, h);
   ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, 256, 128);
+  ctx.fillRect(0, 0, w, h);
+  // a thin painted border, like the hand-lettered boards of old shophouses
+  ctx.strokeStyle = fg;
+  ctx.globalAlpha = 0.55;
+  ctx.lineWidth = 4;
+  ctx.strokeRect(8, 8, w - 16, h - 16);
+  ctx.globalAlpha = 1;
   ctx.fillStyle = fg;
-  ctx.font = 'bold 64px Georgia, serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(text, 128, 66);
+  let size = 72;
+  const maxWidth = w - 40;
+  for (; size > 16; size -= 2) {
+    ctx.font = `bold ${size}px Georgia, serif`;
+    if (ctx.measureText(text).width <= maxWidth) break;
+  }
+  ctx.fillText(text, w / 2, h / 2 + 2);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
   return t;
 }
 

@@ -69,6 +69,8 @@ export class Interaction implements PointerHandler {
   onEmptyTapCallback: (() => void) | null = null;
   onFocusSwipeDown: (() => void) | null = null;
   markersVisible = true;
+  /** First-person mode: the pointer is captured, so "hover" is whatever the centre of the view rests on. */
+  reticle = false;
 
   private regs: Registered[] = [];
   private byObject = new Map<THREE.Object3D, Registered>();
@@ -196,7 +198,8 @@ export class Interaction implements PointerHandler {
         const dir = r.center.clone().sub(camPos).normalize();
         const cos = dir.dot(fwd);
         r.screenDist = Math.acos(THREE.MathUtils.clamp(cos, -1, 1));
-        if (r.screenDist < 0.5) {
+        // a cue is offered for what the view rests on, or for anything close enough to reach
+        if (r.screenDist < 0.5 || (r.distance < 3.4 && r.screenDist < 1.25)) {
           const score = r.screenDist + r.distance * 0.03;
           if (score < bestScore) {
             bestScore = score;
@@ -207,6 +210,10 @@ export class Interaction implements PointerHandler {
         m.visible = false;
         r.screenDist = 99;
       }
+    }
+    if (this.reticle && !this.gesture) {
+      const found = this.hitTest(window.innerWidth / 2, window.innerHeight / 2);
+      this.hovered = found ? found.reg.it : null;
     }
     if (this.gesture?.reg) this.focused = this.gesture.reg.it;
     else if (this.hovered && this.regs.find((r) => r.it === this.hovered)?.eligible) this.focused = this.hovered;
@@ -247,8 +254,23 @@ export class Interaction implements PointerHandler {
 
   // ---------- PointerHandler ----------
 
+  /** Things carried in the hands live under the camera; a press anywhere reaches them. */
+  private heldFallback(): { reg: Registered; hit: THREE.Intersection } | null {
+    for (const r of this.regs) {
+      if (!r.eligible) continue;
+      // with a free finger, a drag on empty space must stay a look; only the reticle takes drags anywhere
+      if (!this.reticle && r.it.gestures.includes('drag')) continue;
+      let o: THREE.Object3D | null = r.it.object;
+      while (o && o !== this.camera) o = o.parent;
+      if (o !== this.camera) continue;
+      const point = r.it.object.getWorldPosition(new THREE.Vector3());
+      return { reg: r, hit: { object: r.it.object, point, distance: point.distanceTo(this.camera.position) } };
+    }
+    return null;
+  }
+
   onPointerDown(x: number, y: number): boolean {
-    const found = this.hitTest(x, y);
+    const found = this.hitTest(x, y) ?? (this.focusSet ? null : this.heldFallback());
     const now = performance.now();
     const base: GestureState = {
       reg: null,
