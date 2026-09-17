@@ -214,6 +214,27 @@ export class Interaction implements PointerHandler {
     else this.focused = best ? best.it : null;
   }
 
+  /** Eligible interactables with their screen positions (development tooling). */
+  debugList() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    return this.regs
+      .filter((r) => r.eligible)
+      .map((r) => {
+        const p = r.center.clone().project(this.camera);
+        return {
+          id: r.it.id,
+          hint: typeof r.it.hint === 'function' ? r.it.hint() : r.it.hint,
+          gestures: r.it.gestures,
+          x: ((p.x + 1) / 2) * w,
+          y: ((1 - p.y) / 2) * h,
+          onScreen: p.z < 1 && Math.abs(p.x) < 1 && Math.abs(p.y) < 1,
+          distance: r.distance,
+          center: [r.center.x, r.center.y, r.center.z],
+        };
+      });
+  }
+
   hintText(): string | null {
     if (this.gesture?.holding && this.gesture.reg === null && this.globalHold) return this.globalHold.hint;
     if (this.focused) {

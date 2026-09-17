@@ -23,18 +23,19 @@ export function mat(color: THREE.ColorRepresentation, opts: MatOpts = {}) {
     const c = matCache.get(key);
     if (c) return c;
   }
-  const m = new THREE.MeshStandardMaterial({
+  const params: THREE.MeshStandardMaterialParameters = {
     color,
     flatShading: opts.flat ?? true,
     roughness: opts.roughness ?? 0.9,
     metalness: opts.metalness ?? 0,
-    map: opts.map,
     emissive: opts.emissive ?? 0x000000,
     emissiveIntensity: opts.emissiveIntensity ?? 1,
     transparent: opts.transparent ?? false,
     opacity: opts.opacity ?? 1,
     side: opts.side ?? THREE.FrontSide,
-  });
+  };
+  if (opts.map) params.map = opts.map;
+  const m = new THREE.MeshStandardMaterial(params);
   if (cacheable) matCache.set(key, m);
   return m;
 }

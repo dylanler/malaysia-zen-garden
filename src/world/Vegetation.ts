@@ -48,7 +48,10 @@ uniform float uAmp;`,
   return mat;
 }
 
-function colored(geo: THREE.BufferGeometry, color: THREE.ColorRepresentation) {
+/** Vertex-colour a part and make it non-indexed so parts with and without indices can be merged. */
+function colored(source: THREE.BufferGeometry, color: THREE.ColorRepresentation) {
+  const geo = source.index ? source.toNonIndexed() : source;
+  if (geo !== source) source.dispose();
   const c = new THREE.Color(color);
   const n = geo.attributes.position.count;
   const arr = new Float32Array(n * 3);

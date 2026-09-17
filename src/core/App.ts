@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Save } from './Save';
+import { Save, type QualitySetting } from './Save';
 import { Input } from './Input';
 import { Interaction } from './Interaction';
 import { Locomotion } from './Locomotion';
@@ -58,7 +58,7 @@ export class App {
   stations: Station[] = [];
   current: Station | null = null;
   quality: Quality;
-  private clock = new THREE.Clock();
+  private timer = new THREE.Timer();
   private elapsed = 0;
   private started = false;
   private frameTimes: number[] = [];
@@ -73,8 +73,7 @@ export class App {
   constructor() {
     const s = this.save.settings;
     const mobile = isMobileUA() || (isTouchDevice() && Math.min(window.innerWidth, window.innerHeight) < 900);
-    const low = s.quality === 'low' || (s.quality === 'auto' && (mobile || (navigator.hardwareConcurrency ?? 8) <= 4));
-    const shadows = s.quality === 'high' ? true : !low;
+    const { low, shadows } = App.decideQuality(s.quality, mobile);
     this.quality = { shadows, mobile, low };
     this.dprCap = low ? 1.5 : 2;
     this.dpr = Math.min(window.devicePixelRatio || 1, this.dprCap);
@@ -219,7 +218,54 @@ export class App {
     }
 
     this.ui.onEnter(() => void this.begin(resume));
+
+    if (import.meta.env.DEV) this.installDevHook();
   }
+
+  /** Development-only state accessor used by the browser test harness; stripped from production builds. */
+  private installDevHook() {
+    const state = () => ({
+      current: this.current?.def.id ?? null,
+      u: this.locomotion.u,
+      hour: this.time.hour,
+      surface: this.locomotion.surface,
+      autoWalk: this.locomotion.autoWalk,
+      seated: !!this.locomotion.seat,
+      hands: this.hands.active,
+      fps: Math.round(this.fps),
+      hint: this.interaction.hintText(),
+      completed: [...this.save.progress.completed],
+      visited: [...this.save.progress.visited],
+      rain: this.weather.rain,
+      weather: this.weather.state,
+      overcast: this.weather.overcast,
+      fog: `#${this.time.fog.color.getHexString()}`,
+      night: this.time.night,
+      finale: this.music.finaleRunning,
+    });
+    const hook = Object.assign(state, {
+      teleport: (id: StationId, offsetMeters = 0) => {
+        this.locomotion.teleport(this.path.stationU[id] + offsetMeters / this.path.length);
+        this.locomotion.faceAlongPath();
+      },
+      setHour: (h: number) => this.time.setHour(h),
+      interactables: () => this.interaction.debugList(),
+      face: (id: string) => {
+        const it = this.interaction.debugList().find((r) => r.id === id);
+        if (!it) return false;
+        const [x, y, z] = it.center;
+        const dx = x - this.camera.position.x;
+        const dy = y - this.camera.position.y;
+        const dz = z - this.camera.position.z;
+        this.locomotion.yaw = Math.atan2(-dx, -dz);
+        this.locomotion.pitch = Math.atan2(dy, Math.hypot(dx, dz));
+        return true;
+      },
+    });
+    (window as unknown as { __tk: typeof hook }).__tk = hook;
+  }
+
+  private fps = 0;
 
   private async begin(resume: boolean) {
     await this.audio.unlock();
@@ -230,13 +276,17 @@ export class App {
       this.time.setHour(this.save.progress.hour);
       if (this.save.progress.lanternLit) this.stations.find((s) => s.def.id === 'jalan')?.restore?.();
     } else {
-      this.locomotion.teleport(0);
-      this.locomotion.faceAlongPath();
+      // the day begins a few steps short of home, looking at the house
+      this.locomotion.teleport(-5 / this.path.length);
       this.time.setHour(6.75);
+      const home = this.stations.find((s) => s.def.id === 'rumah');
+      if (home) this.locomotion.faceToward(home.group.localToWorld(new THREE.Vector3(1.5, 3.2, 8)));
+      else this.locomotion.faceAlongPath();
     }
     this.started = true;
     this.startTime = performance.now();
-    this.clock.start();
+    this.timer.connect(document);
+    this.timer.reset();
     this.loop();
   }
 
@@ -248,8 +298,7 @@ export class App {
       this.ui.setJoystickVisible(s.locomotion === 'free');
       this.ui.toast(s.locomotion === 'free' ? 'Free roam: walk with WASD or the joystick.' : 'Stroll: hold the round button or W to follow the path.');
     }
-    const wantLow = s.quality === 'low' || (s.quality === 'auto' && this.quality.mobile);
-    const wantShadows = s.quality === 'high' ? true : !wantLow;
+    const { low: wantLow, shadows: wantShadows } = App.decideQuality(s.quality, this.quality.mobile);
     if (wantShadows !== this.quality.shadows || wantLow !== this.quality.low) {
       this.save.flush(true);
       this.ui.toast('Changing quality. One moment.');
@@ -273,6 +322,7 @@ export class App {
     this.frameTimes.push(dtMs);
     if (this.frameTimes.length < 90) return;
     const avg = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length;
+    this.fps = 1000 / Math.max(1, avg);
     this.frameTimes.length = 0;
     let next = this.dpr;
     if (avg > 26) next = Math.max(0.7, this.dpr * 0.85);
@@ -286,7 +336,8 @@ export class App {
 
   private loop = () => {
     requestAnimationFrame(this.loop);
-    const dtRaw = this.clock.getDelta();
+    this.timer.update();
+    const dtRaw = this.timer.getDelta();
     const dt = clamp(dtRaw, 0, 0.05);
     this.elapsed += dt;
     const t = this.elapsed;
@@ -401,6 +452,14 @@ export class App {
     this.save.flush(true);
     this.ui.setProgress([], [], this.current?.def.id ?? null);
     this.time.tweenTo(6.75, 40);
+  }
+
+  /** One place decides the quality tier, so a settings change only reloads when the tier really changes. */
+  private static decideQuality(setting: QualitySetting, mobile: boolean) {
+    const weakCpu = (navigator.hardwareConcurrency ?? 8) <= 4;
+    const low = setting === 'low' || (setting === 'auto' && (mobile || weakCpu));
+    const shadows = setting === 'high' ? true : !low;
+    return { low, shadows };
   }
 
   static stationDefs() {

@@ -55,16 +55,24 @@ export class Input {
     canvas.addEventListener('pointerleave', this.onLeave);
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
+    let spaceDown = 0;
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
       this.keys.add(e.code);
       if (e.code === 'Escape') this.menuRequested = true;
-      if (e.code === 'Space') e.preventDefault();
+      if (e.code === 'Space') {
+        e.preventDefault();
+        spaceDown = performance.now();
+      }
       this.lastActivity = performance.now();
     });
-    window.addEventListener('keyup', (e) => this.keys.delete(e.code));
+    window.addEventListener('keyup', (e) => {
+      // a quick tap of Space toggles auto-walk, like a tap on the round button
+      if (e.code === 'Space' && this.keys.has('Space') && performance.now() - spaceDown < 260) this.autoWalkToggle = true;
+      this.keys.delete(e.code);
+    });
     window.addEventListener('blur', () => {
       this.keys.clear();
       this.walkButtonHeld = false;

@@ -55,8 +55,12 @@ export class Terrain {
       const n = fbm(x * 0.045 + 10, z * 0.045 + 10, 3);
       h = 0.15 + (n - 0.5) * 1.2 * smoothstep(LAKE_RADIUS + 4, LAKE_RADIUS + 9, r);
       if (r > 68) {
-        const t = (r - 68) / 30;
-        h += t * t * 16 + (fbm(x * 0.03, z * 0.03, 3) - 0.5) * 6 * smoothstep(68, 85, r);
+        // a ring of low hills that levels off, so the far edge never towers over the sky;
+        // they open out to the north so Kinabalu shows above the padi
+        const t = Math.min((r - 68) / 30, 1.25);
+        const north = Terrain.angleDelta(Terrain.angleOf(x, z), 180);
+        const scale = lerp(0.22, 1, smoothstep(18, 60, north));
+        h += (t * t * 16 + (fbm(x * 0.03, z * 0.03, 3) - 0.5) * 6 * smoothstep(68, 85, r)) * scale;
       }
     }
     return h;

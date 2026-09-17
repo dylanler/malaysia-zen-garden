@@ -22,6 +22,8 @@ export class RumahPanjai extends Station {
     const wood = plankTexture('#a87b50', '#6e4a2c');
     const dark = plankTexture('#6e4a2c', '#3f2a18');
     const floorY = this.floorY;
+    // the house stands back from the path; its open ruai faces the walker and the lake
+    const HZ = 8;
 
     // ---------------- the longhouse: long, high, open ruai toward the path
     const house = new THREE.Group();
@@ -73,9 +75,9 @@ export class RumahPanjai extends Station {
       notch.position.set(0.6, floorY * t, -depth / 2 - 2.2 + 2.2 * t);
       house.add(notch);
     }
-    house.position.set(0, 0, 4.5);
+    house.position.set(0, 0, HZ);
     g.add(house);
-    this.addSeat('ruai', log, new THREE.Vector3(0.6, floorY + 1.55, 4.5 - depth / 2 + 1.4), new THREE.Vector3(-3, floorY + 1.3, 4.5), 'Tap the tangga to climb onto the ruai', () => {
+    this.addSeat('ruai', log, new THREE.Vector3(0.6, floorY + 1.55, HZ - depth / 2 + 1.4), new THREE.Vector3(-3, floorY + 1.3, HZ), 'Tap the tangga to climb onto the ruai', () => {
       this.ctx.ui.setHint(null);
     });
 
@@ -83,7 +85,7 @@ export class RumahPanjai extends Station {
     const puaPositions = [-7.5, -3, 4.5, 8];
     puaPositions.forEach((x, i) => {
       const c = cloth(1.3, 1.9, puaTexture(9 + i));
-      c.position.set(x, floorY + wallH - 0.1, 4.5 - depth / 2 + 0.6);
+      c.position.set(x, floorY + wallH - 0.1, HZ - depth / 2 + 0.6);
       c.rotation.y = 0;
       g.add(c);
     });
@@ -102,15 +104,15 @@ export class RumahPanjai extends Station {
         ['#5a3a2a', '#6e4a2c', '#4a3a3a', '#7a5a3a'][i],
         { roughness: 0.6 },
       );
-      jar.position.set(-6 + i * 0.7, floorY + 0.08, 4.5 + 0.1);
+      jar.position.set(-6 + i * 0.7, floorY + 0.08, HZ + 0.1);
       g.add(jar);
     }
     const tikar = new THREE.Mesh(new THREE.PlaneGeometry(3, 2), mat('#c9a86a', { map: weaveTexture() }));
     tikar.rotation.x = -Math.PI / 2;
-    tikar.position.set(-3, floorY + 0.09, 4.5 - 1.2);
+    tikar.position.set(-3, floorY + 0.09, HZ - 1.2);
     g.add(tikar);
     const slip = slippers('#3a6ab0');
-    slip.position.set(1.1, floorY + 0.1, 4.5 - depth / 2 + 0.4);
+    slip.position.set(1.1, floorY + 0.1, HZ - depth / 2 + 0.4);
     g.add(slip);
 
     // ---------------- the loom (backstrap), set up on the ruai
@@ -153,7 +155,7 @@ export class RumahPanjai extends Station {
     spool.rotation.z = Math.PI / 2;
     spool.position.set(0.7, 0.05, 0.3);
     loom.add(spool);
-    loom.position.set(-2.5, floorY + 0.08, 4.5 - depth / 2 + 1.5);
+    loom.position.set(-2.5, floorY + 0.08, HZ - depth / 2 + 1.5);
     loom.rotation.y = 0.15;
     g.add(loom);
     const loomProxy = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.5, 1.5), mat('#000000'));
@@ -217,13 +219,13 @@ export class RumahPanjai extends Station {
         },
       });
     }
-    rack.position.set(4.5, floorY + 0.08, 4.5 - depth / 2 + 1.2);
+    rack.position.set(4.5, floorY + 0.08, HZ - depth / 2 + 1.2);
     rack.rotation.y = -0.3;
     g.add(rack);
 
     // ---------------- kek lapis on a plate
     const plate = cyl(0.22, 0.2, 0.02, 16, '#f6efe2');
-    plate.position.set(-4.6, floorY + 0.1, 4.5 - 1.1);
+    plate.position.set(-4.6, floorY + 0.1, HZ - 1.1);
     g.add(plate);
     const lapis = new THREE.Group();
     const cakeMat = mat('#f2c14e', { map: lapisTexture(), flat: false });
@@ -244,7 +246,7 @@ export class RumahPanjai extends Station {
       gestures: ['tap'],
       hint: 'Tap to cut a slice of kek lapis',
       markerSize: 0.22,
-      range: 8,
+      range: 10,
       enabled: () => this.sliceIndex < this.lapisSlices.length,
       onTap: () => this.cutSlice(),
     });
