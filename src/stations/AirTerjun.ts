@@ -18,19 +18,53 @@ void main() {
 `;
 const fallFrag = /* glsl */ `
 uniform float uTime;
+uniform float uSpeed;
 uniform sampler2D uNoise;
 uniform vec3 uLight;
 varying vec2 vUv;
 #include <fog_pars_fragment>
 void main() {
-  float n = texture2D(uNoise, vec2(vUv.x * 1.5, vUv.y * 2.5 - uTime * 0.9)).r;
-  float n2 = texture2D(uNoise, vec2(vUv.x * 3.0 + 0.3, vUv.y * 4.0 - uTime * 1.5)).r;
-  float streak = smoothstep(0.3, 0.8, n * 0.6 + n2 * 0.4);
-  float edge = smoothstep(0.0, 0.18, vUv.x) * smoothstep(1.0, 0.82, vUv.x);
-  float bottom = smoothstep(0.0, 0.12, vUv.y);
-  float alpha = (0.4 + streak * 0.55) * edge * mix(1.0, 0.5, 1.0 - bottom);
-  vec3 col = mix(vec3(0.72, 0.84, 0.94), vec3(1.0), streak) * uLight;
+  float t = uTime * uSpeed;
+  // long streaks stretched down the sheet, a finer ripple over them, both accelerating toward the base
+  float fallY = vUv.y + (1.0 - vUv.y) * (1.0 - vUv.y) * 0.35;
+  float n = texture2D(uNoise, vec2(vUv.x * 1.2, fallY * 1.6 - t * 0.55)).r;
+  float n2 = texture2D(uNoise, vec2(vUv.x * 3.5 + 0.3, fallY * 4.5 - t * 1.3)).r;
+  float n3 = texture2D(uNoise, vec2(vUv.x * 7.0 - 0.2, fallY * 9.0 - t * 2.2)).r;
+  float streak = smoothstep(0.32, 0.78, n * 0.5 + n2 * 0.32 + n3 * 0.18);
+  // denser in the middle of the sheet, ragged at the sides
+  float sideNoise = texture2D(uNoise, vec2(vUv.y * 2.0 - t * 0.2, 0.5)).r;
+  float edge = smoothstep(0.0, 0.16 + sideNoise * 0.14, vUv.x) * smoothstep(1.0, 0.84 - sideNoise * 0.14, vUv.x);
+  float core = 1.0 - pow(abs(vUv.x - 0.5) * 2.0, 2.4);
+  // white water at the lip and where it hits the pool
+  float lip = smoothstep(0.86, 0.97, vUv.y);
+  float base = 1.0 - smoothstep(0.0, 0.14, vUv.y);
+  float foam = max(lip, base * 0.5);
+  float alpha = (0.32 + streak * 0.5 + foam * 0.4) * edge * (0.55 + core * 0.45);
+  alpha *= mix(0.75, 1.0, smoothstep(0.0, 0.05, vUv.y));
+  vec3 col = mix(vec3(0.70, 0.83, 0.93), vec3(1.0), clamp(streak + foam, 0.0, 1.0)) * uLight;
   gl_FragColor = vec4(col, alpha);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+  #include <fog_fragment>
+}
+`;
+const foamFrag = /* glsl */ `
+uniform float uTime;
+uniform float uSpeed;
+uniform sampler2D uNoise;
+uniform vec3 uLight;
+varying vec2 vUv;
+#include <fog_pars_fragment>
+void main() {
+  vec2 p = vUv - 0.5;
+  float r = length(p) * 2.0;
+  float a = atan(p.y, p.x) / 6.2832 + 0.5;
+  // rings of froth pushed outward from where the water lands
+  float n = texture2D(uNoise, vec2(a * 3.0, r * 1.4 - uTime * 0.28)).r;
+  float n2 = texture2D(uNoise, vUv * 3.0 + vec2(uTime * 0.04, -uTime * 0.07)).r;
+  float froth = smoothstep(0.42, 0.85, n * 0.55 + n2 * 0.45 + (1.0 - r) * 0.45);
+  float alpha = froth * smoothstep(1.0, 0.4, r) * 0.55;
+  gl_FragColor = vec4(uLight, alpha);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
   #include <fog_fragment>
@@ -45,8 +79,41 @@ interface Stone {
   bounces: number;
 }
 
+/**
+ * A sheet of falling water: wider at the base than the top, drifting slightly forward as it falls,
+ * and curling back over the lip through a quarter circle of radius `lip` at the top.
+ */
+function fallGeometry(width: number, height: number, lip: number, topTaper: number) {
+  const geo = new THREE.PlaneGeometry(width, height, 8, 32);
+  const pos = geo.attributes.position;
+  const arcStart = 1 - (lip * 1.5708) / height; // the arc takes as much of the sheet as its length
+  for (let i = 0; i < pos.count; i++) {
+    const x0 = pos.getX(i);
+    const v = THREE.MathUtils.clamp(pos.getY(i) / height + 0.5, 0, 1); // 0 at the base, 1 at the lip
+    const taper = THREE.MathUtils.lerp(1.12, topTaper, Math.pow(v, 0.8));
+    const wave = Math.sin(v * 11.0 + x0 * 2.0) * 0.035 * (1 - v);
+    const x = x0 * taper + wave;
+    let y: number;
+    let z: number;
+    if (v <= arcStart) {
+      y = -height / 2 + (v / arcStart) * (height - lip);
+      z = -(1 - v / arcStart) * 0.18;
+    } else {
+      const th = ((v - arcStart) / (1 - arcStart)) * Math.PI * 0.5;
+      y = height / 2 - lip + Math.sin(th) * lip;
+      z = (1 - Math.cos(th)) * lip;
+    }
+    pos.setXYZ(i, x, y, z);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
+
 export class AirTerjun extends Station {
   private fallMat!: THREE.ShaderMaterial;
+  private fallMatBack!: THREE.ShaderMaterial;
+  private foamMat!: THREE.ShaderMaterial;
   private mist!: Emitter;
   private poolCenter = new THREE.Vector3(1.2, 0, 5.2); // local
   private poolY = 0;
@@ -63,29 +130,86 @@ export class AirTerjun extends Station {
     const padH = this.center.y;
     this.poolY = -0.32;
 
-    // ---------------- cliff
-    const rockMat = mat('#6f757c', { roughness: 0.95 });
+    // ---------------- cliff: a face of stacked columns leaning back with height, a channel for the fall,
+    // a sill of rock the water curls over, and mossy ledges
+    // the face is in its own shade all day, so the rock is kept pale and given a breath of emissive light
+    const rockMat = mat('#959ca4', { roughness: 0.9 });
+    rockMat.emissive = new THREE.Color('#151b21');
+    const rockDark = mat('#7a828a', { roughness: 0.94 });
+    rockDark.emissive = new THREE.Color('#0f1419');
     const mossMat = mat('#587a52', { roughness: 0.95 });
+    mossMat.emissive = new THREE.Color('#0a120a');
     const cliff = new THREE.Group();
-    const tiers: [number, number, number, number, number][] = [
-      // x, y, z, width, height
-      [0, 1.2, 8.6, 9, 2.4],
-      [0.4, 3.4, 9.2, 8, 2.2],
-      [-0.3, 5.4, 9.8, 7, 2.0],
-      [0.6, 7.0, 10.6, 6, 1.6],
-    ];
-    for (const [x, y, z, w, h] of tiers) {
-      const slab = new THREE.Mesh(new THREE.BoxGeometry(w, h, 3.2), rockMat);
-      slab.position.set(x, y, z);
-      slab.rotation.y = (Math.random() - 0.5) * 0.15;
-      shadow(slab);
-      cliff.add(slab);
-      for (let k = 0; k < 4; k++) {
-        const moss = new THREE.Mesh(new THREE.DodecahedronGeometry(0.6 + Math.random() * 0.5, 0), mossMat);
-        moss.position.set(x + (Math.random() - 0.5) * w * 0.9, y + (Math.random() - 0.5) * h, z - 1.6);
-        moss.scale.set(1, 0.5, 0.6);
-        cliff.add(moss);
+    const FACE_Z = 7.3;
+    const CLIFF_TOP = 8.2;
+    const FALL_X = 1.0;
+    const LEAN = 0.08; // metres back per metre up
+    const columns = [-4.6, -3.0, -1.5, -0.1, 1.3, 2.7, 4.1, 5.5];
+    for (const cx of columns) {
+      const inChannel = Math.abs(cx - FALL_X) < 1.4;
+      // the skyline falls away from the fall on both sides
+      const shoulderDrop = 0.16 * Math.pow(Math.max(0, Math.abs(cx - FALL_X) - 1.4), 1.5);
+      const top = inChannel ? CLIFF_TOP - 0.55 : CLIFF_TOP - shoulderDrop + (Math.random() - 0.5) * 0.4;
+      let y = -0.6;
+      while (y < top) {
+        const h = Math.min(1.3 + Math.random() * 1.4, top - y + 0.3);
+        const w = 1.55 + Math.random() * 0.4;
+        const d = 2.8;
+        const proud = inChannel ? -0.5 : (Math.random() - 0.5) * 0.5;
+        const slab = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), Math.random() < 0.35 ? rockDark : rockMat);
+        const cy = y + h / 2;
+        slab.position.set(cx + (Math.random() - 0.5) * 0.2, cy, FACE_Z + d / 2 + proud + Math.max(0, cy) * LEAN);
+        slab.rotation.y = (Math.random() - 0.5) * 0.14;
+        slab.rotation.x = (Math.random() - 0.5) * 0.05;
+        shadow(slab);
+        cliff.add(slab);
+        y += h * 0.9;
       }
+    }
+    // the sill the water pours over, and the shoulders either side of the channel
+    const sill = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.5, 2.0), rockDark);
+    sill.position.set(FALL_X, CLIFF_TOP - 0.3, FACE_Z + 1.2 + CLIFF_TOP * LEAN);
+    sill.rotation.x = -0.06;
+    shadow(sill);
+    cliff.add(sill);
+    for (const side of [-1, 1]) {
+      const shoulder = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.1, 1.6), rockMat);
+      shoulder.position.set(FALL_X + side * 1.95, CLIFF_TOP - 0.25, FACE_Z + 0.55 + CLIFF_TOP * LEAN);
+      shoulder.rotation.set((Math.random() - 0.5) * 0.1, side * 0.15, side * 0.08);
+      shadow(shoulder);
+      cliff.add(shoulder);
+    }
+    // ledges with moss, away from the channel
+    for (let k = 0; k < 14; k++) {
+      const lx = -4.8 + Math.random() * 10.2;
+      if (Math.abs(lx - FALL_X) < 1.7) continue;
+      const ly = 0.6 + Math.random() * (CLIFF_TOP - 1.4);
+      const moss = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5 + Math.random() * 0.5, 0), mossMat);
+      moss.position.set(lx, ly, FACE_Z - 0.15 + ly * LEAN);
+      moss.scale.set(1.2, 0.45, 0.6);
+      moss.rotation.y = Math.random() * Math.PI;
+      cliff.add(moss);
+    }
+    // a fringe of green along the top edge, following the skyline
+    for (let k = 0; k < 9; k++) {
+      const bush = new THREE.Mesh(new THREE.DodecahedronGeometry(0.7 + Math.random() * 0.6, 0), mossMat);
+      const bx = -5 + k * 1.3 + Math.random() * 0.6;
+      const drop = 0.16 * Math.pow(Math.max(0, Math.abs(bx - FALL_X) - 1.4), 1.5);
+      bush.position.set(bx, CLIFF_TOP - drop + 0.3, FACE_Z + 0.8 + CLIFF_TOP * LEAN + Math.random() * 0.8);
+      bush.scale.set(1, 0.7, 1);
+      cliff.add(bush);
+    }
+    // talus: broken rock heaped where the face meets the ground, softening the corners
+    for (let k = 0; k < 16; k++) {
+      const side = k % 2 === 0 ? -1 : 1;
+      const tx = FALL_X + side * (3.0 + Math.random() * 3.6);
+      const tz = FACE_Z - 0.4 - Math.random() * 1.8;
+      const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.45 + Math.random() * 0.7, 0), Math.random() < 0.3 ? mossMat : rockMat);
+      this.settle(rock, tx, tz, 0.05);
+      rock.rotation.set(Math.random(), Math.random(), Math.random());
+      rock.scale.set(1, 0.7 + Math.random() * 0.4, 1);
+      shadow(rock);
+      g.add(rock);
     }
     // boulders around the pool rim
     for (let i = 0; i < 14; i++) {
@@ -103,45 +227,70 @@ export class AirTerjun extends Station {
     g.add(cliff);
 
     // ---------------- the fall and the pool
-    this.fallMat = new THREE.ShaderMaterial({
-      vertexShader: fallVert,
-      fragmentShader: fallFrag,
-      uniforms: THREE.UniformsUtils.merge([
-        THREE.UniformsLib.fog,
-        { uTime: { value: 0 }, uNoise: { value: noiseTexture(256, 7) }, uLight: { value: new THREE.Color('#ffffff') } },
-      ]),
-      transparent: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      fog: true,
-    });
-    const fallH = 8.4;
-    const fall = new THREE.Mesh(new THREE.PlaneGeometry(1.7, fallH, 1, 8), this.fallMat);
-    fall.position.set(this.poolCenter.x + 0.2, this.poolY + fallH / 2 - 0.2, 6.9);
+    const shared = { uTime: { value: 0 }, uNoise: { value: noiseTexture(256, 7) }, uLight: { value: new THREE.Color('#ffffff') } };
+    const waterShader = (frag: string, speed: number) =>
+      new THREE.ShaderMaterial({
+        vertexShader: fallVert,
+        fragmentShader: frag,
+        uniforms: { ...THREE.UniformsUtils.clone(THREE.UniformsLib.fog), ...shared, uSpeed: { value: speed } },
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        fog: true,
+      });
+    this.fallMat = waterShader(fallFrag, 1.0);
+    this.fallMatBack = waterShader(fallFrag, 0.72);
+    this.foamMat = waterShader(foamFrag, 1.0);
+    // the main sheet: base in the pool, top curling back over the sill
+    const fallZ = FACE_Z - 0.55;
+    const fallTop = CLIFF_TOP + 0.2;
+    const fallH = fallTop - this.poolY;
+    const fall = new THREE.Mesh(fallGeometry(1.9, fallH, 1.0, 0.7), this.fallMat);
+    fall.position.set(FALL_X, this.poolY + fallH / 2, fallZ);
     fall.renderOrder = 5;
     g.add(fall);
-    const fall2 = new THREE.Mesh(new THREE.PlaneGeometry(0.6, fallH * 0.7, 1, 4), this.fallMat);
-    fall2.position.set(this.poolCenter.x - 1.6, this.poolY + (fallH * 0.7) / 2 + 1.4, 7.1);
+    // a thinner sheet just behind it, falling a touch slower, gives the water some depth
+    const back = new THREE.Mesh(fallGeometry(1.5, fallH - 0.1, 0.9, 0.5), this.fallMatBack);
+    back.position.set(FALL_X + 0.1, this.poolY + fallH / 2 - 0.05, fallZ + 0.22);
+    back.renderOrder = 4;
+    g.add(back);
+    // a side trickle off a ledge to the right, landing at the pool's edge
+    const trickleH = 5.4;
+    const trickleX = FALL_X + 2.6;
+    const ledge = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.4, 1.4), rockDark);
+    ledge.position.set(trickleX, this.poolY + trickleH - 0.25, FACE_Z + 0.35 + trickleH * LEAN);
+    shadow(ledge);
+    cliff.add(ledge);
+    const fall2 = new THREE.Mesh(fallGeometry(0.5, trickleH, 0.5, 0.6), this.fallMat);
+    fall2.position.set(trickleX, this.poolY + trickleH / 2, FACE_Z - 0.4 + trickleH * LEAN * 0.5);
     fall2.renderOrder = 5;
     g.add(fall2);
+
     const poolMat = this.ctx.water.track(makeWaterMaterial({ scale: 0.6, opacity: 0.86 }));
     const pool = new THREE.Mesh(new THREE.CircleGeometry(3.35, 32), poolMat);
     pool.rotation.x = -Math.PI / 2;
     pool.position.set(this.poolCenter.x, this.poolY, this.poolCenter.z);
     pool.renderOrder = 2;
     g.add(pool);
+    // foam where the water lands, churning outward
+    const foam = new THREE.Mesh(new THREE.CircleGeometry(1.0, 40), this.foamMat);
+    foam.rotation.x = -Math.PI / 2;
+    foam.scale.set(1.9, 1.25, 1);
+    foam.position.set(FALL_X, this.poolY + 0.02, fallZ - 0.25);
+    foam.renderOrder = 3;
+    g.add(foam);
     // splash mist at the base
     this.mist = new Emitter({
-      count: 90,
+      count: 120,
       color: '#ffffff',
-      size: 1.4,
-      life: [2.2, 3.6],
-      spawn: () => new THREE.Vector3(this.poolCenter.x + (Math.random() - 0.5) * 2.2, this.poolY + 0.1, 6.4 + (Math.random() - 0.5) * 0.8),
-      velocity: () => new THREE.Vector3((Math.random() - 0.5) * 0.35, 0.35 + Math.random() * 0.3, -0.25 - Math.random() * 0.3),
+      size: 1.6,
+      life: [2.0, 3.4],
+      spawn: () => new THREE.Vector3(FALL_X + (Math.random() - 0.5) * 2.4, this.poolY + 0.1, fallZ - 0.1 + (Math.random() - 0.5) * 0.8),
+      velocity: () => new THREE.Vector3((Math.random() - 0.5) * 0.45, 0.4 + Math.random() * 0.35, -0.3 - Math.random() * 0.35),
       drag: 0.5,
-      opacity: 0.11,
+      opacity: 0.1,
     });
-    this.mist.rate = 18;
+    this.mist.rate = 22;
     g.add(this.mist.points);
 
     // waterfall sound emitters (world space)
